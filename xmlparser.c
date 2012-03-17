@@ -28,47 +28,60 @@ struct Lexer {
 
 struct Lexer lexer; 
 
-void init_lexer(void) {
-lexer.start = input;
-lexer.end = input;
+int junk(char c) {
+	if (isspace(c)) 
+		return 1;
+	else
+		return 0;
 }
+
+void init_lexer(void) {
+	lexer.start = input;
+	if (junk(*lexer.start)) {
+		while (junk(*lexer.start))
+			++lexer.start;
+	}
+	lexer.end = lexer.start;
+}
+
 
 void GetInput(void) {
 	
 	int i=0;
 	char c;
 
-	while (((c=getchar())!=EOF) && (c < INVAL)) {
+	while (((c=getchar())!=EOF) && (i < INVAL)) {
 		input[i] = c;
 		++i;
 }
-	
-	if (i <= INVAL) {
-		--i;
-		if ((!isalnum(input[i])) && (input[i]!='<'))
-			input[i] = '\0';
-		else
-			input[i+1] = '\0';
+	if (c!=EOF) { // the input is too long
+		fprintf(stderr, "INPUT ERROR: INPUT TOO LONG\n");
+		exit(0);
 }
-
 	else {
-		fprintf(stderr, "INPUT ERROR, STIRNG TO LONG");
+		input[i] = '\0'; // this will help us exit gracefully
+}		 
 }
-}
+	
 int GetDifference(void) {
 	int diff;
 
-	lexer.start = lexer.end;
-	while ((!isalnum(*lexer.start)) && ((*lexer.start != '<'))) 
-		++lexer.start;
-	lexer.end = lexer.start;
-	while ((isalnum(*lexer.end)) || (*lexer.end == '<'))
+	while((!junk(*lexer.end)) && (*lexer.end!='\0')) 
 		++lexer.end;
-	diff = lexer.start - lexer.end;
+	diff = lexer.end - lexer.start;
 	return diff;
 }
 	
-		
+void resetInput(void) {	
+	lexer.start = lexer.end;
+	if (*lexer.end == '\0')
+		;
+	else {
+		while ((*lexer.start!='\0') && junk(*lexer.start))		
+			++lexer.start;
+		lexer.end = lexer.start;
+}
+}
 
 Token *GetToken(void) {
 	int diff = GetDifference();
@@ -80,6 +93,7 @@ Token *GetToken(void) {
 		p->value = malloc(2 * sizeof(char));
 		strcpy(p->value, "<");
 } 
+	resetInput();
 	return p;			
 }	
 
@@ -89,7 +103,7 @@ Token *GetToken(void) {
 main()  {
 GetInput();
 init_lexer();
-while(*lexer.end!='\0') {
+while(*lexer.start!='\0') {
 
 	Token *p = GetToken();
 	printf("%d\n", *p->type);
