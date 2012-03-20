@@ -7,6 +7,7 @@
 #include <unistd.h>
 #define MAXVAL 10000
 #define HASHSIZE 101
+#define PAGESIZ 22
 #define TRUE 1
 #define FALSE 0
 #define INVAL 100000
@@ -342,8 +343,38 @@ void parse(char *tbp, char *lbp, char *cbp) {
 	getlink(lbp, cbp);
 }
 	
-void lynx(char *bp) {
-	fprintf(stderr, "LYNX WORX!\n");
+void w3m(char *bp) {
+	char com[50]; // a command of fifty characters
+	char fn[50] = "tmp.XXXXXX";
+	char buf[BUFSIZ]; // IO goes here
+	char bn; // ttyin back or next
+	FILE *fp, *fpntr;
+	int i, f, lines;
+	bn = 'n';
+
+	lines = 0; 
+	
+	if ((f=mkstemp(fn))<0) {
+		fprintf(stderr, "W3M ERROR: COULD NOT MAKE TMP FILE\n");
+		exit(1);
+	}
+
+	sprintf(com, "curl %s > tmp.html", bp);
+	system(com);
+	sprintf(com, "w3m tmp.html > %s", fn);
+	system(com);
+	fp = efopen(fn, "r");
+
+	while((fgets(buf, sizeof buf, fp)!=NULL) && (bn!='b')) {
+		if(++lines < PAGESIZ)
+			fputs(buf, stdout);
+		else {
+			buf[strlen(buf)-1] = '\0';
+			fputs(buf, stdout); 
+			lines = 0;
+			bn = ttyin();
+		}
+	}
 }
 
 getrss(void) {
@@ -381,9 +412,9 @@ getrss(void) {
 int main(int argc, char *argv[])  {
 
    // char *progname = argv[0];
-
 	int i = 0;
 	char tbuf[BUFSIZ], lbuf[BUFSIZ], cbuf[BUFSIZ], yn; 
+	
 	inithash();
 	getrss();
 	init_lexer();
@@ -392,9 +423,9 @@ int main(int argc, char *argv[])  {
 		fprintf(stderr, "%s\n", tbuf);
 		yn = ttyin();
 		if (yn == 's') 
-			lynx(lbuf);
+			w3m(lbuf);
 		else if (yn == 'c')
-			lynx(cbuf);
+			w3m(cbuf);
 		else if (yn == 'n')
 				; // do nothing
 		else {
