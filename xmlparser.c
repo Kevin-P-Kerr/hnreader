@@ -157,7 +157,7 @@ void GetInput(void) {
 }
 	if (c!=EOF) { // the input is too long
 		fprintf(stderr, "INPUT ERROR: INPUT TOO LONG\n");
-		exit(0);
+		exit(1);
 }
 	else {
 		input[i] = '\0'; // this will help us exit gracefully
@@ -399,8 +399,8 @@ int main(int argc, char *argv[])  {
 				; // do nothing
 		else {
 			fprintf(stderr, "HNREADER: ARGUEMENTES n, c, or s\n");
-			exit(0);
+			exit(1);
 		}
 	}
-	return 1; 
+	return 0; 
 }	
