@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <unistd.h>
 #define MAXVAL 10000
 #define HASHSIZE 101
 #define TRUE 1
@@ -19,9 +20,11 @@
 #define CTITLE 135
 #define DESCRIPTION 136
 #define CDESCRIPTION 137
-#define COMMENT 138
-#define CCOMENT 139
-#define OTHER 140
+#define COMMENTS 138
+#define CCOMENTS 139
+#define ITEM 140
+#define CITEM 141
+#define OTHER 142
 
 char input[INVAL];
 
@@ -79,6 +82,8 @@ void inithash(void) {
 	struct nlist *hcdescription;
 	struct nlist *hcomment;
 	struct nlist *hccomment;
+	struct nlist *hitem;
+	struct nlist *hcitem;
 	
 	char *link = "132";
 	char *title = "134";
@@ -88,6 +93,8 @@ void inithash(void) {
 	char *cdescription = "137";
 	char *comment = "138";
 	char *ccomment = "139";
+	char *item = "140";
+	char *citem = "141";
 
 
 	hlink = install("<link>", link);
@@ -98,6 +105,8 @@ void inithash(void) {
 	hcdescription = install("</description>", cdescription);	
 	hcomment = install("<comments>", comment);
 	hccomment = install("</comments>", ccomment);
+	hitem = install("<item>", item);
+	hcitem = install("</item>", citem);
 }
 
 typedef struct token {
@@ -263,24 +272,135 @@ void printString(Token *p) {
 }
 	printf("\n");
 }
-			
-	
 
-main()  {
-GetInput();
-inithash();
-init_lexer();
-while(*lexer.start!='\0') {
+FILE *efopen(char *file, char *mode) {
 
-	Token *p = GetToken();
-	printf("%d\n", *p->type);
-	printString(p);
-}
-printf("END OF STREAM\n");
+	FILE *fp;
+//	extern char *progname;
+
+	if ((fp=fopen(file, mode))!=NULL)
+		return fp;
+	fprintf(stderr, "%s: can't open file mode %s\n", file, mode);
+	exit(1);
 }
 
+char ttyin(void) {
 	
+	char buf[BUFSIZ];
+	static FILE *tty = NULL;
 
+	if (tty == NULL) 
+		tty = efopen("/dev/tty", "r");
+	if ((fgets(buf, BUFSIZ, tty)) == NULL || buf[0] =='q')
+		exit(0);
+	else
+		return buf[0];
+}
 
+void resetbuf(char *bp) {
 
+	int i = 0;
 
+	while ((bp[i]!='\0') && (i < BUFSIZ)) {
+		bp[i] = '\0';
+		++i;
+	}
+}
+
+void getcomments(char *cbp) {
+	Token *tk = GetToken();
+
+	while (*tk->type!=COMMENTS)
+		tk = GetToken();
+	tk = GetToken(); // get one more token for the link to comments
+	strcpy(cbp, tk->value);
+}
+	
+void getlink(char *lbp, char *cbp) {
+	
+	Token *tk = GetToken();
+	
+	while (*tk->type!=LINK) 
+		tk = GetToken();
+	tk = GetToken(); // get one more token for the actual link
+	strcpy(lbp, tk->value);
+	getcomments(cbp);
+}
+
+void parse(char *tbp, char *lbp, char *cbp) {
+
+	Token *tk = GetToken();
+
+	while (*tk->type!=TITLE) {
+		free(tk);
+		tk = GetToken();
+	}
+	free(tk);
+	tk = GetToken(); // get one more token for the actual title
+	resetbuf(tbp);
+	strcpy(tbp, tk->value);
+	getlink(lbp, cbp);
+}
+	
+void lynx(char *bp) {
+	fprintf(stderr, "LYNX WORX!\n");
+}
+
+getrss(void) {
+	
+	char fn[BUFSIZ] = "hnreader.XXXXXX";
+	char com[BUFSIZ] = "hcurl.XXXXXX";
+	int i=0;
+	int f; // file descriptor I don't care about
+	if ((f=mkstemp(com))<0 || (f=mkstemp(fn))<0)
+		fprintf(stderr, "GET RSS FILE\nERROR MAKING FILE\n");
+	FILE *fp = efopen(com, "w");
+	fprintf(fp, "curl news.ycombinator.com/rss > %s", fn);
+	fclose(fp);
+	fp = efopen(com, "r");
+	char cmd[BUFSIZ];
+	while ((cmd[i]=fgetc(fp))!=EOF)
+		++i;
+	cmd[i] = '\0';
+	i = 0; //reset i for later use
+	fclose(fp);
+	system(cmd);
+	fp = efopen(fn, "r");
+	while ((input[i]=fgetc(fp))!=EOF) 
+		++i;
+	input[i] = '\0';
+	fclose(fp);
+	unlink(fn);
+	unlink(com);
+}
+	
+	
+	
+	
+	
+int main(int argc, char *argv[])  {
+
+   // char *progname = argv[0];
+
+	int i = 0;
+	char tbuf[BUFSIZ], lbuf[BUFSIZ], cbuf[BUFSIZ], yn; 
+	inithash();
+	getrss();
+	init_lexer();
+	while (*lexer.end!='\0') {
+		parse(tbuf, lbuf, cbuf);
+		fprintf(stderr, "%s\n", tbuf);
+		yn = ttyin();
+		if (yn == 's') 
+			lynx(lbuf);
+		else if (yn == 'c')
+			lynx(cbuf);
+		else if (yn == 'n')
+				; // do nothing
+		else {
+			fprintf(stderr, "HNREADER: ARGUEMENTES n, c, or s\n");
+			exit(0);
+		}
+	}
+	return 1; 
+}	
