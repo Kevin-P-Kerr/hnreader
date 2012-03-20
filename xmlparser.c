@@ -7,7 +7,7 @@
 #include <unistd.h>
 #define MAXVAL 10000
 #define HASHSIZE 101
-#define PAGESIZ 22
+#define PAGESIZ 18
 #define TRUE 1
 #define FALSE 0
 #define INVAL 100000
@@ -224,16 +224,7 @@ Token *GetToken(void) {
 		else
 			*p->type = OTHER;
     }
-		
-		
 	
-/*	if (*lexer.start == '<') {
-		p->type = malloc(sizeof(int));
-		*p->type = L_ARROW;
-		p->value = malloc((sizeof(char) * diff) + 1);
-		strncpy(p->value, lexer.start, diff);
-		p->value[diff + 1] = '\0'; */
-
 	else if (*lexer.start == '>') {
 		p->type = malloc(sizeof(int));
 	    *p->type = R_ARROW;
@@ -308,39 +299,64 @@ void resetbuf(char *bp) {
 	}
 }
 
+int lexcheck(void) { // returns 1 if true, 0 if false
+	if ((*lexer.start!='\0') || (*lexer.end!='\0'))
+		return 1;
+	else
+		return 0;
+}
+
 void getcomments(char *cbp) {
 	Token *tk = GetToken();
 
-	while (*tk->type!=COMMENTS)
+	while ((*tk->type!=COMMENTS) && (lexcheck!=0)) {
+		free(tk);
 		tk = GetToken();
-	tk = GetToken(); // get one more token for the link to comments
-	strcpy(cbp, tk->value);
+	}
+	if (lexcheck==0)
+		;
+	else {
+		free(tk);
+		tk = GetToken(); // get one more token for the link to comments
+		strcpy(cbp, tk->value);
+	}
 }
+
 	
 void getlink(char *lbp, char *cbp) {
 	
 	Token *tk = GetToken();
 	
-	while (*tk->type!=LINK) 
+	while ((*tk->type!=LINK) && (lexcheck!=0)) {
+		free(tk);
 		tk = GetToken();
-	tk = GetToken(); // get one more token for the actual link
-	strcpy(lbp, tk->value);
-	getcomments(cbp);
+	}
+	if (lexcheck==0)
+		;
+	else {
+		free(tk);
+		tk = GetToken(); // get one more token for the actual link
+		strcpy(lbp, tk->value);
+		getcomments(cbp);
+	}	
 }
-
 void parse(char *tbp, char *lbp, char *cbp) {
 
 	Token *tk = GetToken();
 
-	while (*tk->type!=TITLE) {
+	while((*tk->type!=TITLE) && (lexcheck!=0)) {
 		free(tk);
 		tk = GetToken();
 	}
-	free(tk);
-	tk = GetToken(); // get one more token for the actual title
-	resetbuf(tbp);
-	strcpy(tbp, tk->value);
-	getlink(lbp, cbp);
+	if (lexcheck==0)
+		;
+	else {
+		free(tk);
+		tk = GetToken(); // get one more token for the actual title
+		resetbuf(tbp);
+		strcpy(tbp, tk->value);
+		getlink(lbp, cbp);
+	}
 }
 	
 void w3m(char *bp) {
@@ -348,7 +364,7 @@ void w3m(char *bp) {
 	char fn[50] = "tmp.XXXXXX";
 	char buf[BUFSIZ]; // IO goes here
 	char bn; // ttyin back or next
-	FILE *fp, *fpntr;
+	FILE *fp;
 	int i, f, lines;
 	bn = 'n';
 
@@ -375,50 +391,43 @@ void w3m(char *bp) {
 			bn = ttyin();
 		}
 	}
+	fclose(fp);
+	unlink(fn);
+	unlink("tmp.html");
 }
+
 
 getrss(void) {
 	
-	char fn[BUFSIZ] = "hnreader.XXXXXX";
-	char com[BUFSIZ] = "hcurl.XXXXXX";
-	int i=0;
-	int f; // file descriptor I don't care about
-	if ((f=mkstemp(com))<0 || (f=mkstemp(fn))<0)
-		fprintf(stderr, "GET RSS FILE\nERROR MAKING FILE\n");
-	FILE *fp = efopen(com, "w");
-	fprintf(fp, "curl news.ycombinator.com/rss > %s", fn);
-	fclose(fp);
-	fp = efopen(com, "r");
-	char cmd[BUFSIZ];
-	while ((cmd[i]=fgetc(fp))!=EOF)
-		++i;
-	cmd[i] = '\0';
-	i = 0; //reset i for later use
-	fclose(fp);
-	system(cmd);
-	fp = efopen(fn, "r");
-	while ((input[i]=fgetc(fp))!=EOF) 
+	char fn[50] = "hnreader.XXXXXX";
+	char com[75]; // com might be a little longer
+	int f; // a file descriptor
+	int i=0; // an index
+	if ((f=mkstemp(fn))<0) {
+		fprintf(stderr, "GETRSS PROBLEM, ERROR MAKING FILE");
+		exit(1);
+	}
+	sprintf(com, "curl news.ycombinator.com/rss > %s", fn);
+	system(com);
+	
+	FILE *fp = efopen(fn, "r");
+	while ((input[i]=fgetc(fp))!=EOF)
 		++i;
 	input[i] = '\0';
 	fclose(fp);
 	unlink(fn);
-	unlink(com);
 }
-	
-	
-	
-	
-	
+
 int main(int argc, char *argv[])  {
 
-   // char *progname = argv[0];
+    char *progname = argv[0];
 	int i = 0;
 	char tbuf[BUFSIZ], lbuf[BUFSIZ], cbuf[BUFSIZ], yn; 
 	
 	inithash();
 	getrss();
 	init_lexer();
-	while (*lexer.end!='\0') {
+	while ((*lexer.end!='\0') && (*lexer.start!='\0')) {
 		parse(tbuf, lbuf, cbuf);
 		fprintf(stderr, "%s\n", tbuf);
 		yn = ttyin();
@@ -433,5 +442,6 @@ int main(int argc, char *argv[])  {
 			exit(1);
 		}
 	}
+	printf("END OF STREAM\n");
 	return 0; 
 }	
