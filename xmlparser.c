@@ -359,6 +359,7 @@ void w3m(char *bp) {
 			bn = ttyin();
 		}
 	}
+	fclose(fp);
 	unlink(fn);
 	unlink("tmp.html");
 }
