@@ -289,74 +289,42 @@ char ttyin(void) {
 		return buf[0];
 }
 
-void resetbuf(char *bp) {
+void getcomments(char *cbp, int *pflag, Token *tk) {
 
-	int i = 0;
-
-	while ((bp[i]!='\0') && (i < BUFSIZ)) {
-		bp[i] = '\0';
-		++i;
-	}
-}
-
-int lexcheck(void) { // returns 1 if true, 0 if false
-	if ((*lexer.start!='\0') || (*lexer.end!='\0'))
-		return 1;
-	else
-		return 0;
-}
-
-void getcomments(char *cbp) {
-	Token *tk = GetToken();
-
-	while ((*tk->type!=COMMENTS) && (lexcheck!=0)) {
+	if (*tk->type == COMMENTS) {
 		free(tk);
 		tk = GetToken();
-	}
-	if (lexcheck==0)
-		;
-	else {
-		free(tk);
-		tk = GetToken(); // get one more token for the link to comments
 		strcpy(cbp, tk->value);
+		*pflag = 3;
 	}
 }
 
 	
-void getlink(char *lbp, char *cbp) {
+void getlink(char *lbp, int *pflag, Token *tk) {
 	
-	Token *tk = GetToken();
-	
-	while ((*tk->type!=LINK) && (lexcheck!=0)) {
-		free(tk);
-		tk = GetToken();
-	}
-	if (lexcheck==0)
-		;
-	else {
+	if (*tk->type == LINK) {
 		free(tk);
 		tk = GetToken(); // get one more token for the actual link
 		strcpy(lbp, tk->value);
-		getcomments(cbp);
+		*pflag = 2;
 	}	
 }
-void parse(char *tbp, char *lbp, char *cbp) {
 
-	Token *tk = GetToken();
+void parse(char *tbp, char *lbp, char *cbp, int *pflag, Token *tk) {
 
-	while((*tk->type!=TITLE) && (lexcheck!=0)) {
-		free(tk);
-		tk = GetToken();
-	}
-	if (lexcheck==0)
-		;
-	else {
-		free(tk);
-		tk = GetToken(); // get one more token for the actual title
-		resetbuf(tbp);
-		strcpy(tbp, tk->value);
-		getlink(lbp, cbp);
-	}
+	if (*pflag == 0) { // look for a title 
+			if (*tk->type == TITLE) {
+				free(tk);
+				tk = GetToken();
+				strcpy(tbp, tk->value);	
+				*pflag = 1;
+			}	
+ 	}else if (*pflag == 1)
+		getlink(lbp, pflag, tk);
+	else if (*pflag == 2) 
+		getcomments(cbp, pflag, tk);
+	else
+		fprintf(stderr, "FLAG ERROR IN PARSE");
 }
 	
 void w3m(char *bp) {
@@ -421,25 +389,34 @@ int main(int argc, char *argv[])  {
 
     char *progname = argv[0];
 	int i = 0;
+	int flag, *pflag;
 	char tbuf[BUFSIZ], lbuf[BUFSIZ], cbuf[BUFSIZ], yn; 
+	Token *tk;
+
+	flag = 0;
+	pflag = &flag;
 	
 	inithash();
 	getrss();
 	init_lexer();
 	while ((*lexer.end!='\0') && (*lexer.start!='\0')) {
-		parse(tbuf, lbuf, cbuf);
-		fprintf(stderr, "%s\n", tbuf);
-		yn = ttyin();
-		if (yn == 's') 
-			w3m(lbuf);
-		else if (yn == 'c')
-			w3m(cbuf);
-		else if (yn == 'n')
-				; // do nothing
-		else {
-			fprintf(stderr, "HNREADER: ARGUEMENTES n, c, or s\n");
-			exit(1);
+		while ((*pflag!=3) && ((*lexer.end!='\0') && (*lexer.start!='\0')))  {
+		tk = GetToken();
+		parse(tbuf, lbuf, cbuf, pflag, tk);
+		free(tk);
 		}
+	*pflag = 0; // reset parser
+	fprintf(stderr, "%s\n", tbuf);
+	yn = ttyin();
+	if (yn == 's') 
+		w3m(lbuf);
+	else if (yn == 'c')
+		w3m(cbuf);
+	else if (yn == 'n')
+		; // do nothing
+	else {
+		; // still do nothing
+	 }
 	}
 	printf("END OF STREAM\n");
 	return 0; 
