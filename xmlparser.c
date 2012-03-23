@@ -207,7 +207,7 @@ void resetInput(void) {
 			++lexer.start;
 		lexer.end = lexer.start;
 }
-}  // is this necessary anymore? 
+}  
 
 Token *GetToken(void) {
 	int diff = GetDifference();
